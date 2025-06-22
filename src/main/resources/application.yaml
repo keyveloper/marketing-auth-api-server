@@ -1,0 +1,4 @@
+spring:
+  application:
+    name:
+      marketing-auth-api-server
