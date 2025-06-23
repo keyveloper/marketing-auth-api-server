@@ -56,13 +56,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
-
-    // --- AWS SDK: Cognito User Pool ---
-    implementation("software.amazon.awssdk:cognitoidentityprovider")
-
-    // --- Validation ---
-    implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("org.passay:passay:1.6.1")
 }
 
 kotlin {
