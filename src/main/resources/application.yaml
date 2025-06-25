@@ -2,3 +2,16 @@ spring:
   application:
     name:
       marketing-auth-api-server
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Cognito JWKS URI - 실제 값으로 변경 필요
+          jwk-set-uri: https://cognito-idp.ap-northeast-2.amazonaws.com/${COGNITO_USER_POOL_ID}/.well-known/jwks.json
+          issuer-uri: https://cognito-idp.ap-northeast-2.amazonaws.com/${COGNITO_USER_POOL_ID}
+
+# Cognito 설정
+cognito:
+  region: ${AWS_REGION:ap-northeast-2}
+  userPoolId: ${COGNITO_USER_POOL_ID}
+  clientId: ${COGNITO_CLIENT_ID}
