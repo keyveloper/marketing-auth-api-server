@@ -22,8 +22,6 @@ repositories {
 
 dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    implementation("org.springframework.boot:spring-boot-starter-data-jdbc")
-    runtimeOnly("org.mariadb.jdbc:mariadb-java-client")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
@@ -55,6 +53,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+
+    // .env 파일 자동 로드
+    implementation("me.paulschwarz:spring-dotenv:4.0.0")
 }
 
 kotlin {

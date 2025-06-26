@@ -1,3 +1,6 @@
+server:
+  port: ${SERVER_PORT:8080}
+
 spring:
   application:
     name:
@@ -7,11 +10,12 @@ spring:
       resourceserver:
         jwt:
           # Cognito JWKS URI - 실제 값으로 변경 필요
-          jwk-set-uri: https://cognito-idp.ap-northeast-2.amazonaws.com/${COGNITO_USER_POOL_ID}/.well-known/jwks.json
-          issuer-uri: https://cognito-idp.ap-northeast-2.amazonaws.com/${COGNITO_USER_POOL_ID}
+          jwk-set-uri: https://cognito-idp.ap-northeast-2.amazonaws.com/ap-northeast-2_Sw2F1HsU7/.well-known/jwks.json
+          issuer-uri: https://cognito-idp.ap-northeast-2.amazonaws.com/ap-northeast-2_Sw2F1HsU7
 
 # Cognito 설정
 cognito:
-  region: ${AWS_REGION:ap-northeast-2}
-  userPoolId: ${COGNITO_USER_POOL_ID}
-  clientId: ${COGNITO_CLIENT_ID}
+  region: ap-northeast-2
+  userPoolId: ap-northeast-2_Sw2F1HsU7
+  clientId: 4jup717oq1ckpogobq768o7r6c
+
