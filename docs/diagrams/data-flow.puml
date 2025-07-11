@@ -1,0 +1,101 @@
+@startuml data-flow
+!theme plain
+
+skinparam defaultFontName 맑은 고딕
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle rectangle
+
+title 마케팅 플랫폼 데이터 흐름도
+
+' 외부 엔티티
+actor "인플루언서" as influencer #LightBlue
+actor "광고주" as advertiser #LightBlue
+
+' 프론트엔드
+component "React Frontend\n(Amplify)" as frontend #LightGreen {
+    component "Auth Module" as authModule
+    component "API Client" as apiClient
+}
+
+' AWS Cognito
+cloud "AWS Cognito" as cognito #Orange {
+    database "User Pool" as userPool
+    component "JWT Issuer" as jwtIssuer
+}
+
+' Auth API Server
+component "Auth API Server\n(Spring Boot)" as authServer #LightCoral {
+    component "AuthValidationController" as controller
+    component "CognitoValidationService" as service
+    component "JwtDecoder" as decoder
+}
+
+' 데이터 저장소
+database "Configuration\n(application.yml)" as config #LightGray
+
+' 데이터 흐름 - 로그인
+influencer --> authModule : 1. 로그인 정보\n(email, password)
+advertiser --> authModule : 1. 로그인 정보\n(email, password)
+
+authModule --> userPool : 2. 인증 요청\n(Amplify.Auth.signIn)
+userPool --> jwtIssuer : 3. 인증 성공
+jwtIssuer --> authModule : 4. JWT Token\n(ID Token + Access Token\n+ Refresh Token)
+
+authModule --> apiClient : 5. 토큰 저장\n(LocalStorage)
+
+' 데이터 흐름 - API 호출
+influencer --> apiClient : 6. API 요청\n(프로필 조회, 데이터 수정)
+advertiser --> apiClient : 6. API 요청\n(캠페인 관리)
+
+apiClient --> controller : 7. HTTP Request\nAuthorization: Bearer {token}
+
+controller --> service : 8. 토큰 + 엔드포인트 타입\n(/influencer or /advertiser)
+
+service --> decoder : 9. JWT Token\n(디코딩 요청)
+
+decoder --> jwtIssuer : 10. JWKS 공개키 요청\n(최초 1회, 이후 캐싱)
+jwtIssuer --> decoder : 11. RSA 공개키
+
+decoder --> service : 12. 검증된 JWT 객체\n(Signature, exp 검증 완료)
+
+config --> service : 13. 설정 값\n(userPoolId, clientId, region)
+
+service --> service : 14. 추가 검증\n- Issuer 검증\n- Client ID 검증\n- UserType 검증
+
+service --> controller : 15. 검증 결과\nExtractUserResponseFromServer\n{\n  user: ExtractedUserFromToken,\n  status: 200/401/403/500\n}
+
+controller --> apiClient : 16. HTTP Response\n- 200: 사용자 정보\n- 401: 인증 실패\n- 403: 권한 없음\n- 500: 서버 오류
+
+apiClient --> influencer : 17. 응답 데이터 표시
+apiClient --> advertiser : 17. 응답 데이터 표시
+
+' 에러 흐름
+note right of service
+  **에러 케이스:**
+  - INVALID_ISSUER (401)
+  - INVALID_AUDIENCE (401)
+  - INVALID_USER_TYPE (403)
+  - EXPIRED_TOKEN (401)
+  - INVALID_SIGNATURE (401)
+  - INVALID_TOKEN (401)
+  - INTERNAL_ERROR (500)
+end note
+
+note left of userPool
+  **저장된 데이터:**
+  - userId (sub)
+  - email
+  - phone_number
+  - custom:userType
+    (INFLUENCER/ADVERTISER)
+end note
+
+note bottom of config
+  **설정 데이터:**
+  cognito:
+    userPoolId: ap-northeast-2_xxxxx
+    clientId: xxxxxxxxxxxxx
+    region: ap-northeast-2
+end note
+
+@enduml

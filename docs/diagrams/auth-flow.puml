@@ -1,0 +1,148 @@
+@startuml auth-flow
+!theme plain
+
+skinparam defaultFontName 맑은 고딕
+skinparam backgroundColor #FEFEFE
+skinparam sequence {
+    ArrowColor #2C3E50
+    ArrowFontName 맑은 고딕
+    ActorBorderColor #2C3E50
+    ActorFontName 맑은 고딕
+    ActorFontSize 13
+    LifeLineBorderColor #2C3E50
+    LifeLineBackgroundColor #ECF0F1
+    ParticipantBorderColor #2C3E50
+    ParticipantBackgroundColor #ECF0F1
+    ParticipantFontName 맑은 고딕
+    ParticipantFontSize 13
+    NoteFontName 맑은 고딕
+}
+skinparam titleFontName 맑은 고딕
+
+title 마케팅 플랫폼 인증 처리 흐름
+
+actor "사용자" as User #LightBlue
+participant "React Frontend\n(Amplify)" as Frontend #LightGreen
+participant "AWS Cognito\nUser Pool" as Cognito #Orange
+participant "Auth API Server\n(Spring Boot)" as AuthServer #LightCoral
+participant "CognitoValidationService" as Service #LightYellow
+participant "JwtDecoder" as Decoder #LightGray
+
+== 회원가입/로그인 단계 ==
+
+User -> Frontend: 로그인 요청\n(email, password)
+activate Frontend
+
+Frontend -> Cognito: **signIn()** (Amplify API)\nAmplify.Auth.signIn(username, password)
+activate Cognito
+
+Cognito -> Cognito: 사용자 인증 처리\n- 비밀번호 검증\n- MFA 확인 (설정된 경우)
+Cognito --> Frontend: **ID Token (JWT)** 반환\n+ Access Token\n+ Refresh Token
+deactivate Cognito
+
+Frontend -> Frontend: 토큰 저장\n(LocalStorage/SessionStorage)
+Frontend --> User: 로그인 성공 화면
+deactivate Frontend
+
+== API 요청 및 인증 단계 ==
+
+User -> Frontend: 인증이 필요한 API 요청\n(예: 프로필 조회, 데이터 수정)
+activate Frontend
+
+Frontend -> Frontend: 저장된 ID Token 조회
+
+Frontend -> AuthServer: **POST** /api/auth/validate/influencer\n**Header:** Authorization: Bearer {ID Token}
+activate AuthServer
+note right: INFLUENCER용 엔드포인트\n(AuthValidationController.kt:33)
+
+AuthServer -> Service: **validateInfluencer**(authorization)
+activate Service
+note right: Controller → Service 위임\n(AuthValidationController.kt:41)
+
+Service -> Service: **extractTokenFromHeader**()\nBearer 접두사 제거
+note right: CognitoValidationService.kt:250
+
+Service -> Decoder: **decode**(token)\nJWT 디코딩 및 기본 검증
+activate Decoder
+note right: Spring Security OAuth2 JWT\n자동 검증:\n- 서명(Signature)\n- 만료시간(exp)
+
+Decoder -> Cognito: **JWKS 공개키 조회**\nhttps://cognito-idp.{region}.amazonaws.com/\n{userPoolId}/.well-known/jwks.json
+activate Cognito
+Cognito --> Decoder: RSA 공개키 반환
+deactivate Cognito
+
+Decoder -> Decoder: JWT 서명 검증\n(RSA 알고리즘)
+Decoder --> Service: **Jwt 객체** 반환
+deactivate Decoder
+
+== 추가 검증 단계 ==
+
+Service -> Service: **Issuer 검증**\nExpected: https://cognito-idp.{region}.amazonaws.com/{userPoolId}\nActual: jwt.issuer
+note right: CognitoValidationService.kt:54
+
+alt Issuer 불일치
+    Service --> AuthServer: **401 Unauthorized**\nINVALID_ISSUER
+    AuthServer --> Frontend: Error Response
+    Frontend --> User: "인증 실패"
+end
+
+Service -> Service: **Client ID 검증**\nExpected: {clientId}\nActual: jwt.claims["client_id"] or jwt.audience
+note right: CognitoValidationService.kt:67
+
+alt Client ID 불일치
+    Service --> AuthServer: **401 Unauthorized**\nINVALID_AUDIENCE
+    AuthServer --> Frontend: Error Response
+    Frontend --> User: "인증 실패"
+end
+
+== 사용자 정보 추출 및 검증 ==
+
+Service -> Service: **extractUserFromToken**(jwt)\n사용자 정보 추출
+note right: CognitoValidationService.kt:229\n- userId (sub)\n- email\n- phoneNumber\n- custom:userType
+
+Service -> Service: **UserType 검증**\nExpected: "INFLUENCER"\nActual: extractedUser.userType
+note right: CognitoValidationService.kt:82
+
+alt UserType 불일치
+    Service --> AuthServer: **403 Forbidden**\nINVALID_USER_TYPE
+    note left: 권한 없음\n(다른 서비스용 토큰)
+    AuthServer --> Frontend: Error Response
+    Frontend --> User: "접근 권한 없음"
+end
+
+== 검증 성공 ==
+
+Service --> AuthServer: **200 OK**\nExtractUserResponseFromServer\n{\n  user: ExtractedUserFromToken,\n  logics: "Token validation successful"\n}
+deactivate Service
+
+AuthServer --> Frontend: **사용자 정보 반환**\n- userId\n- email\n- userType\n- phoneNumber 등
+deactivate AuthServer
+
+Frontend -> Frontend: 사용자 정보 활용\n(상태 관리, UI 렌더링)
+Frontend --> User: 요청한 데이터 표시
+deactivate Frontend
+
+== 예외 처리 ==
+
+group JWT 검증 실패 시
+    note over Decoder, Service
+        **JwtException 발생 케이스:**
+        1. **만료된 토큰** → EXPIRED_TOKEN (401)
+        2. **서명 오류** → INVALID_SIGNATURE (401)
+        3. **기타 오류** → INVALID_TOKEN (401)
+
+        (CognitoValidationService.kt:98-122)
+    end note
+end
+
+group 예상치 못한 오류
+    note over Service, AuthServer
+        **Exception 발생 시:**
+        → INTERNAL_ERROR (500)
+        스택 트레이스 로깅
+
+        (CognitoValidationService.kt:123-129)
+    end note
+end
+
+@enduml

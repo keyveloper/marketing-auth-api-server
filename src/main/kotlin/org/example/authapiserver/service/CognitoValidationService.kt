@@ -9,6 +9,7 @@ import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.JwtException
 import org.springframework.stereotype.Service
+import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
@@ -44,10 +45,10 @@ class CognitoValidationService(
     fun validateTokenAndExtractInfluencerInfo(
         token: String,
     ): ExtractUserResponseFromServer {
-        logger.debug { "Starting JWT token validation influencer token" }
+        logger.info { "========== Starting JWT token validation for INFLUENCER ==========" }
+        logger.debug { "Token (first 50 chars): ${token.take(50)}..." }
 
         try {
-            // JWT 디코딩 및 검증 (서명, iss, exp 자동 검증)
             val jwt: Jwt = jwtDecoder.decode(token)
 
             // 추가 검증: Issuer 확인
@@ -55,7 +56,7 @@ class CognitoValidationService(
             val actualIssuer = jwt.issuer?.toString()
 
             if (actualIssuer != expectedIssuer) {
-                logger.warn { "Invalid issuer: expected=$expectedIssuer, actual=$actualIssuer" }
+                logger.warn { "✗ Invalid issuer: expected=$expectedIssuer, actual=$actualIssuer" }
                 return ExtractUserResponseFromServer.unauthorized(
                     errorCode = MSAServiceErrorCode.INVALID_ISSUER,
                     errorMessage = "Invalid token issuer",
@@ -65,8 +66,9 @@ class CognitoValidationService(
 
             // 추가 검증: Client ID 확인 (aud 또는 client_id)
             val tokenClientId = jwt.claims["client_id"] as? String ?: jwt.audience?.firstOrNull()
+
             if (tokenClientId != clientId) {
-                logger.warn { "Invalid client_id: expected=$clientId, actual=$tokenClientId" }
+                logger.warn { "✗ Invalid client_id: expected=$clientId, actual=$tokenClientId" }
                 return ExtractUserResponseFromServer.unauthorized(
                     errorCode = MSAServiceErrorCode.INVALID_AUDIENCE,
                     errorMessage = "Invalid token audience",
@@ -77,10 +79,10 @@ class CognitoValidationService(
             // 사용자 정보 추출
             val extractedUser = extractUserFromToken(jwt)
 
-            // 추가 검증: 프론트엔드에서 기대하는 userType과 일치하는지 확인
+
             if (extractedUser.userType != "INFLUENCER") {
                 logger.warn {
-                    "UserType mismatch: expected=INFLUENCER, " +
+                    "✗ UserType mismatch: expected=INFLUENCER, " +
                             "actual=${extractedUser.userType}, userId=${extractedUser.userId}"
                 }
                 return ExtractUserResponseFromServer.forbidden(
@@ -89,10 +91,6 @@ class CognitoValidationService(
                     logics = "Expected userType: INFLUENCER, Actual: ${extractedUser.userType}"
                 )
             }
-
-            logger.info { "Token validated successfully for user:" +
-                    " ${extractedUser.userId}, userType: ${extractedUser.userType}" }
-
             return ExtractUserResponseFromServer.success(
                 user = extractedUser,
                 logics = "Token validation successful for userType: ${extractedUser.userType}"
@@ -135,18 +133,22 @@ class CognitoValidationService(
     fun validateTokenAndExtractAdvertiserInfo(
         token: String,
     ): ExtractUserResponseFromServer {
-        logger.debug { "Starting JWT token validation advertiser token" }
+        logger.info { "========== Starting JWT token validation for ADVERTISER ==========" }
+        logger.debug { "Token (first 50 chars): ${token.take(50)}..." }
 
         try {
             // JWT 디코딩 및 검증 (서명, iss, exp 자동 검증)
             val jwt: Jwt = jwtDecoder.decode(token)
 
+
+
             // 추가 검증: Issuer 확인
             val expectedIssuer = "https://cognito-idp.$region.amazonaws.com/$userPoolId"
             val actualIssuer = jwt.issuer?.toString()
 
+
             if (actualIssuer != expectedIssuer) {
-                logger.warn { "Invalid issuer: expected=$expectedIssuer, actual=$actualIssuer" }
+                logger.warn { "✗ Invalid issuer: expected=$expectedIssuer, actual=$actualIssuer" }
                 return ExtractUserResponseFromServer.unauthorized(
                     errorCode = MSAServiceErrorCode.INVALID_ISSUER,
                     errorMessage = "Invalid token issuer",
@@ -156,33 +158,33 @@ class CognitoValidationService(
 
             // 추가 검증: Client ID 확인 (aud 또는 client_id)
             val tokenClientId = jwt.claims["client_id"] as? String ?: jwt.audience?.firstOrNull()
+
+
             if (tokenClientId != clientId) {
-                logger.warn { "Invalid client_id: expected=$clientId, actual=$tokenClientId" }
+                logger.warn { "✗ Invalid client_id: expected=$clientId, actual=$tokenClientId" }
                 return ExtractUserResponseFromServer.unauthorized(
                     errorCode = MSAServiceErrorCode.INVALID_AUDIENCE,
                     errorMessage = "Invalid token audience",
                     logics = "Expected client_id: $clientId, Actual: $tokenClientId"
                 )
             }
+            logger.info { "✓ Client ID validation passed" }
 
             // 사용자 정보 추출
             val extractedUser = extractUserFromToken(jwt)
 
-            // 추가 검증: 프론트엔드에서 기대하는 userType과 일치하는지 확인
-            if (extractedUser.userType != "ADVERTISER") {
+
+            if (extractedUser.userType?.startsWith("ADVERTISER") != true) {
                 logger.warn {
-                    "UserType mismatch: expected=ADVERTISER " +
+                    "✗ UserType mismatch: expected to start with ADVERTISER, " +
                             "actual=${extractedUser.userType}, userId=${extractedUser.userId}"
                 }
                 return ExtractUserResponseFromServer.forbidden(
                     errorCode = MSAServiceErrorCode.INVALID_USER_TYPE,
                     errorMessage = "User type does not match the expected type for this service",
-                    logics = "Expected userType: ADVERTISER, Actual: ${extractedUser.userType}"
+                    logics = "Expected userType to start with: ADVERTISER, Actual: ${extractedUser.userType}"
                 )
             }
-
-            logger.info { "Token validated successfully for user:" +
-                    " ${extractedUser.userId}, userType: ${extractedUser.userType}" }
 
             return ExtractUserResponseFromServer.success(
                 user = extractedUser,
@@ -229,7 +231,7 @@ class CognitoValidationService(
         val userId = jwt.subject ?: throw JwtException("Token missing 'sub' claim")
 
         return ExtractedUserFromToken(
-            userId = userId,
+            userId = UUID.fromString(userId),
             email = jwt.claims["email"] as? String,
             emailVerified = jwt.claims["email_verified"] as? Boolean,
             phoneNumber = jwt.claims["phone_number"] as? String,
@@ -255,7 +257,9 @@ class CognitoValidationService(
             throw IllegalArgumentException("Authorization header must start with 'Bearer '")
         }
 
-        return authorizationHeader.substring(7).trim()
+        val jwt: String = authorizationHeader.substring(7).trim()
+        logger.info { "jwt: $jwt" }
+        return jwt
     }
 
     /**

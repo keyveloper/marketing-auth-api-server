@@ -1,0 +1,57 @@
+@startuml advertiser-auth-flow
+!theme plain
+
+skinparam defaultFontName 맑은 고딕
+skinparam backgroundColor #FEFEFE
+skinparam sequence {
+    ArrowColor #2C3E50
+    ArrowFontName 맑은 고딕
+    ActorBorderColor #2C3E50
+    ActorFontName 맑은 고딕
+    LifeLineBorderColor #2C3E50
+    LifeLineBackgroundColor #ECF0F1
+    ParticipantBorderColor #2C3E50
+    ParticipantBackgroundColor #ECF0F1
+    ParticipantFontName 맑은 고딕
+    NoteFontName 맑은 고딕
+}
+skinparam titleFontName 맑은 고딕
+
+title 광고주(Advertiser) 인증 처리 흐름
+
+actor "광고주" as User #LightBlue
+participant "React Frontend" as Frontend #LightGreen
+participant "Auth API Server" as AuthServer #LightCoral
+participant "CognitoValidationService" as Service #LightYellow
+
+User -> Frontend: API 요청
+activate Frontend
+
+Frontend -> AuthServer: **POST** /api/auth/validate/advertiser\n**Header:** Authorization: Bearer {token}
+activate AuthServer
+note right: ADVERTISER용 엔드포인트\n(AuthValidationController.kt:74)
+
+AuthServer -> Service: **validateAdvertiser**(authorization)
+activate Service
+
+Service -> Service: Token 추출 및 디코딩
+Service -> Service: Issuer/Client ID 검증
+Service -> Service: 사용자 정보 추출
+
+Service -> Service: **UserType 검증**\nuserType.startsWith("ADVERTISER")
+note right: CognitoValidationService.kt:176\n\n허용되는 UserType:\n- ADVERTISER\n- ADVERTISER_PREMIUM\n- ADVERTISER_ENTERPRISE 등
+
+alt UserType이 ADVERTISER로 시작하지 않음
+    Service --> AuthServer: **403 Forbidden**\nINVALID_USER_TYPE
+    AuthServer --> Frontend: Error Response
+    Frontend --> User: "접근 권한 없음"
+else UserType 검증 성공
+    Service --> AuthServer: **200 OK** + 사용자 정보
+    deactivate Service
+    AuthServer --> Frontend: 사용자 정보
+    deactivate AuthServer
+    Frontend --> User: 요청 성공
+    deactivate Frontend
+end
+
+@enduml

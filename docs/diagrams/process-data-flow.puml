@@ -1,0 +1,187 @@
+@startuml process-data-flow
+!theme plain
+
+skinparam defaultFontName 맑은 고딕
+skinparam backgroundColor #FEFEFE
+
+title 마케팅 플랫폼 프로세스 중심 데이터 흐름도 (DFD)
+
+' 스타일 정의
+skinparam rectangle {
+    BackgroundColor<<external>> #E8F4F8
+    BorderColor<<external>> #2980B9
+    BackgroundColor<<process>> #D5F4E6
+    BorderColor<<process>> #27AE60
+    BackgroundColor<<datastore>> #FFF4E6
+    BorderColor<<datastore>> #F39C12
+}
+
+' 외부 엔티티 (External Entity)
+rectangle "인플루언서\n사용자" as influencer <<external>>
+rectangle "광고주\n사용자" as advertiser <<external>>
+
+' 프로세스 (Process) - 동그란 모서리
+rectangle "P1\n사용자 인증\n(Cognito Login)" as p1 <<process>> {
+}
+
+rectangle "P2\n토큰 발급\n(JWT Issuer)" as p2 <<process>> {
+}
+
+rectangle "P3\n토큰 저장\n(LocalStorage)" as p3 <<process>> {
+}
+
+rectangle "P4\n API 요청 생성\n(Add Bearer Token)" as p4 <<process>> {
+}
+
+rectangle "P5\n토큰 검증 요청\n(Controller)" as p5 <<process>> {
+}
+
+rectangle "P6\n토큰 디코딩\n(JwtDecoder)" as p6 <<process>> {
+}
+
+rectangle "P7\n서명 검증\n(JWKS RSA)" as p7 <<process>> {
+}
+
+rectangle "P8\n클레임 검증\n(Issuer/ClientId)" as p8 <<process>> {
+}
+
+rectangle "P9\n사용자 정보 추출\n(Extract User)" as p9 <<process>> {
+}
+
+rectangle "P10\nUserType 검증\n(Role Check)" as p10 <<process>> {
+}
+
+rectangle "P11\n응답 생성\n(Response Builder)" as p11 <<process>> {
+}
+
+' 데이터 저장소 (Data Store)
+database "D1\nCognito\nUser Pool" as d1 <<datastore>>
+database "D2\nJWKS\n공개키 저장소" as d2 <<datastore>>
+database "D3\nApplication\nConfiguration" as d3 <<datastore>>
+database "D4\nBrowser\nLocalStorage" as d4 <<datastore>>
+
+' 데이터 흐름 - 로그인 단계
+influencer -down-> p1 : 로그인 정보\n(email, password)
+advertiser -down-> p1 : 로그인 정보\n(email, password)
+
+p1 -right-> d1 : 인증 요청
+d1 -down-> p1 : 사용자 정보
+
+p1 -down-> p2 : 인증 성공 신호
+p2 -right-> d1 : 사용자 클레임 조회
+d1 --> p2 : 사용자 속성\n(userId, email,\ncustom:userType)
+
+p2 -down-> p3 : JWT Token\n(ID + Access +\nRefresh Token)
+
+p3 -right-> d4 : 토큰 저장
+p3 -left-> influencer : 로그인 성공
+p3 -left-> advertiser : 로그인 성공
+
+' 데이터 흐름 - API 요청 단계
+influencer -down-> p4 : API 요청\n(프로필 조회, 수정)
+advertiser -down-> p4 : API 요청\n(캠페인 관리)
+
+p4 -up-> d4 : 토큰 조회
+d4 --> p4 : JWT Token
+
+p4 -down-> p5 : HTTP Request\nAuthorization:\nBearer {token}
+
+p5 -down-> p6 : JWT Token 문자열\n+ 엔드포인트 타입
+
+p6 -right-> p7 : JWT Token
+p7 -right-> d2 : 공개키 요청\n(최초 1회)
+d2 --> p7 : RSA 공개키
+
+p7 -down-> p8 : 검증된 JWT 객체\n(Signature OK,\nexp 확인 완료)
+
+p8 -left-> d3 : 설정 값 조회\n(userPoolId,\nclientId, region)
+d3 --> p8 : 설정 값
+
+p8 -down-> p9 : Issuer/ClientId\n검증 완료
+
+p9 -down-> p10 : ExtractedUserFromToken\n{\n  userId, email,\n  userType,\n  phoneNumber\n}
+
+p10 -down-> p11 : UserType 검증 결과\n+ 사용자 정보
+
+p11 -left-> p4 : HTTP Response\n(200/401/403/500)\n+ 사용자 정보
+
+p4 -up-> influencer : 응답 데이터
+p4 -up-> advertiser : 응답 데이터
+
+' 에러 흐름
+note right of p6
+  **P6 에러:**
+  - JWT 파싱 실패
+  → INVALID_TOKEN
+end note
+
+note right of p7
+  **P7 에러:**
+  - EXPIRED_TOKEN
+  - INVALID_SIGNATURE
+  → 401 Unauthorized
+end note
+
+note right of p8
+  **P8 에러:**
+  - INVALID_ISSUER
+  - INVALID_AUDIENCE
+  → 401 Unauthorized
+end note
+
+note right of p10
+  **P10 에러:**
+  - INVALID_USER_TYPE
+  (INFLUENCER 불일치)
+  (ADVERTISER로 시작 안함)
+  → 403 Forbidden
+end note
+
+note bottom of d1
+  **저장된 데이터:**
+  - 사용자 인증 정보
+  - 사용자 속성
+  - custom:userType
+    (INFLUENCER/
+     ADVERTISER)
+end note
+
+note bottom of d2
+  **JWKS 엔드포인트:**
+  https://cognito-idp.
+  {region}.amazonaws.com/
+  {userPoolId}/
+  .well-known/jwks.json
+
+  **캐싱:**
+  Spring Security가
+  자동으로 공개키 캐싱
+end note
+
+note bottom of d3
+  **application.yml:**
+  cognito:
+    userPoolId
+    clientId
+    region
+end note
+
+legend right
+  **기호 설명:**
+
+  **외부 엔티티** (파란색)
+  - 시스템 외부의 사용자 또는 시스템
+
+  **프로세스** (초록색)
+  - 데이터를 변환하는 처리 단계
+  - P1~P11: 각 처리 단계
+
+  **데이터 저장소** (노란색)
+  - 데이터가 저장되는 곳
+  - D1~D4: 각 저장소
+
+  **데이터 흐름** (화살표)
+  - 데이터의 이동 경로
+endlegend
+
+@enduml
