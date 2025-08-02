@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(./gradlew build:*)",
+      "Bash(del /q \"C:\\Users\\dideh\\Desktop\\marketing\\marketing-auth-api-server\\src\\main\\kotlin\\org\\example\\authapiserver\\user\\dto\\GetUserInfoResponseToClient.kt\" \"C:\\Users\\dideh\\Desktop\\marketing\\marketing-auth-api-server\\src\\main\\kotlin\\org\\example\\authapiserver\\user\\dto\\ServiceToControllerUserDto.kt\")"
     ],
     "deny": [],
     "ask": []

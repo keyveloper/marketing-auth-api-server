@@ -38,3 +38,6 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### Example Package (exclude from git) ###
+**/aexample/

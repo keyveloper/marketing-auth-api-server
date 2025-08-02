@@ -1,0 +1,23 @@
+### User API Test - Cognito 사용자 정보 조회
+
+### 환경 변수 설정
+@baseUrl = http://localhost:8088
+@userId = 14a80d8c-d021-70a9-ba28-5bab07c853c5
+
+### 1. userId로 사용자 정보 조회
+# @name getUserInfo
+GET {{baseUrl}}/api/v1/user/{{userId}}
+Content-Type: application/json
+
+### 2. 실제 userId로 테스트 (UUID 형식)
+# 실제 Cognito에 등록된 userId로 교체하세요
+GET {{baseUrl}}/api/v1/user/550e8400-e29b-41d4-a716-446655440000
+Content-Type: application/json
+
+### 3. 잘못된 형식의 userId 테스트 (400 에러 예상)
+GET {{baseUrl}}/api/v1/user/invalid-uuid
+Content-Type: application/json
+
+### 4. 존재하지 않는 userId 테스트 (404 에러 예상)
+GET {{baseUrl}}/api/v1/user/99999999-9999-9999-9999-999999999999
+Content-Type: application/json

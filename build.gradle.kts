@@ -56,6 +56,10 @@ dependencies {
 
     // .env 파일 자동 로드
     implementation("me.paulschwarz:spring-dotenv:4.0.0")
+
+    // AWS Cognito Identity Provider SDK
+    implementation(platform("software.amazon.awssdk:bom:2.25.0"))
+    implementation("software.amazon.awssdk:cognitoidentityprovider")
 }
 
 kotlin {
@@ -66,4 +70,13 @@ kotlin {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// aexample 패키지 빌드 제외
+sourceSets {
+    main {
+        kotlin {
+            exclude("**/aexample/**")
+        }
+    }
 }
